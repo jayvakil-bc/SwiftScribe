@@ -2,41 +2,60 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { createClient } = require('@deepgram/sdk');
 require('dotenv').config();
-const OpenAI = require('openai');
 
 const app = express();
-const port = 3001;
+const port = 3000;
 
+// Multer setup for file handling
 const upload = multer({ dest: 'uploads/' });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, 
-});
+// Deepgram API setup
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
+// Serve the upload HTML page
 app.get('/', (req, res) => {
-  res.send('SwiftScribe backend server is running. Use the /api/upload endpoint to upload files.');
+    res.sendFile(path.join(__dirname, 'upload.html'));
 });
 
-app.post('/api/upload', upload.single('file'), async (req, res) => {
-  try {
-    const filePath = path.join(__dirname, req.file.path);
+// Route to upload and transcribe audio
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
+    try {
+        const file = req.file;
 
-    const transcription = await openai.audio.transcriptions.create({   //API CALL (sends a req to OPENAI's Whisper API)
-      file: fs.createReadStream(filePath),
-      model: "whisper-1",
-      response_format: "text", 
-    });
+        if (!file) {
+            return res.status(400).send('No file uploaded.');
+        }
 
-    fs.unlinkSync(filePath); 
+        // Read the uploaded audio file
+        const audioFile = fs.readFileSync(file.path);
 
-    res.json({ transcription: transcription.text });
-  } catch (error) {
-    console.error('Error during transcription:', error);
-    res.status(500).json({ error: 'Failed to transcribe audio' });
-  }
+        // Call the Deepgram API to transcribe the audio
+        const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+            audioFile,
+            {
+                model: "nova-2",
+                smart_format: true,
+            }
+        );
+
+        // Delete the file after processing
+        fs.unlinkSync(file.path);
+
+        // Handle any errors
+        if (error) {
+            throw error;
+        }
+
+        // Send the transcription result back to the client
+        res.json(result);
+    } catch (error) {
+        console.error('Error transcribing audio:', error);
+        res.status(500).send('An error occurred while transcribing the audio.');
+    }
 });
 
 app.listen(port, () => {
-  console.log(`Backend server running at http://localhost:${port}`);
+    console.log(`Server is running on port ${port}`);
 });
