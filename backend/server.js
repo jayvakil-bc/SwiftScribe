@@ -8,7 +8,7 @@ require('dotenv').config();
 const app = express();
 const port = 3000;
 
-// Multer setup for file handling
+// Multer setup for file handling 
 const upload = multer({ dest: 'uploads/' });
 
 // Deepgram API setup
@@ -59,3 +59,4 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });
+
