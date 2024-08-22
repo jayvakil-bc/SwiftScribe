@@ -1,57 +1,12 @@
-const express = require('express');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const { createClient } = require('@deepgram/sdk');
-require('dotenv').config();
+const axios = require('axios');
 
-const app = express();
-const port = 3000;
-
-const upload = multer({ dest: 'uploads/' });
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'upload.html'));
-});
-
-app.post('/transcribe', upload.single('audio'), async (req, res) => {
-    try {
-        const file = req.file;
-
-        if (!file) {
-            return res.status(400).send('No file uploaded.');
-        }
-
-        const audioFile = fs.readFileSync(file.path);
-
-        const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
-            audioFile,
-            {
-                model: "nova-2",
-                smart_format: true,
-            }
-        );
-
-        fs.unlinkSync(file.path);
-
-        res.json(result.results.channels[0].alternatives[0].transcript); 
-        //const transcript = results.results.channels[0].alternatives[0].transcript;
-
-        //const transcript = result.channels[0].alternatives[0].transcript;
-        
-        //const markdownNotes = await generateLectureNotes(transcript);
-
-        //res.json({ markdownNotes });
-
-    } catch (error) {
-        console.error('Error transcribing audio:', error);
-        res.status(500).send('An error occurred while transcribing the audio.');
-    }
-});
+const transcript = "In today's fast paced world, continuous learning is not just a choice, it's a necessity. Whether you're a student, a professional, or anyone looking to grow, the pursuit of knowledge keeps you adaptable and relevant. The skills you learn today may become outdated tomorrow, so staying curious and proactive in your learning journey is crucial. Embrace new technologies, explore different fields, and never be afraid to challenge yourself. Learning isn't confined to classrooms. It happens every day through experiences, conversations, and even failures. The more you learn, the more you expand your horizons, opening doors to new opportunities and perspectives. Remember the quest for knowledge is a lifelong adventure, and it's one that will keep you sharp, innovative, and ready for whatever the future holds.";
 
 
-// Function to call the ChatGPT API to generate structured lecture notes in Markdown
+
+
+generateLectureNotes(transcript)
+
 async function generateLectureNotes(transcript) {
     const prompt = `
     You are an expert note-taker. Convert the following lecture transcription into well-structured and well-formatted notes. Please include headings, bullet points, numbered lists, and any necessary subheadings to make the notes clear and easy to understand. Ensure the notes are organized logically and include key points, important details, and any significant terms or definitions.
@@ -96,7 +51,3 @@ async function generateLectureNotes(transcript) {
         throw new Error('Failed to generate lecture notes.');
     }
 }
-
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-});
