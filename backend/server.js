@@ -40,6 +40,8 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
             }
         );
 
+        console.log("Deepgram API Response:", { result, error }); //added this line to troubleshoot
+
         fs.unlinkSync(file.path);
 
         //res.json(result.results.channels[0].alternatives[0].transcript); 
@@ -49,7 +51,11 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
         
         const markdownNotes = await generateLectureNotes(transcript);
 
-        res.json( markdownNotes );
+        // calling the createNotionPage function to create the Notion page with the generated notes
+        await createNotionPage(markdownNotes);
+
+        res.json({ message: 'Notes created in Notion successfully!' });
+
 
     } catch (error) {
         console.error('Error transcribing audio:', error);
@@ -103,81 +109,58 @@ async function generateLectureNotes(transcript) {
 // Send the formatted text to notion
 //START
 
-(async () => {
-  const response = await notion.pages.create({
-    "cover": {
-        "type": "external",
-        "external": {
-            "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/Tuscankale.jpg"
-        }
-    },
-    "icon": {
-        "type": "emoji",
-        "emoji": "🥬"
-    },
-    "parent": {
-        "type": "database_id",
-        "database_id": "d9824bdc-8445-4327-be8b-5b47500af6ce"
-    },
-    "properties": {
-        "Name": {
-            "title": [
-                {
-                    "text": {
-                        "content": "Tuscan kale"
-                    }
+async function createNotionPage(markdownNotes) {
+    try {
+        const response = await notion.pages.create({
+            cover: {
+                type: "external",
+                external: {
+                    url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQL1vfD1t88e0tw4cPRG5VneFn14Yu7bzNU8ePWbn5W7UbH9jn2bJUGIYB-h0ZugGfrlQ&usqp=CAU"
                 }
-            ]
-        },
-        "Description": {
-            "rich_text": [
-                {
-                    "text": {
-                        "content": "A dark green leafy vegetable"
-                    }
-                }
-            ]
-        },
-        "Food group": {
-            "select": {
-                "name": "🥬 Vegetable"
-            }
-        }
-    },
-    "children": [
-        {
-            "object": "block",
-            "heading_2": {
-                "rich_text": [
-                    {
-                        "text": {
-                            "content": "Lacinato kale"
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "object": "block",
-            "paragraph": {
-                "rich_text": [
-                    {
-                        "text": {
-                            "content": "Lacinato kale is a variety of kale with a long tradition in Italian cuisine, especially that of Tuscany. It is also known as Tuscan kale, Italian kale, dinosaur kale, kale, flat back kale, palm tree kale, or black Tuscan palm.",
-                            "link": {
-                                "url": "https://en.wikipedia.org/wiki/Lacinato_kale"
+            },
+            icon: {
+                type: "emoji",
+                emoji: "📝"
+            },
+            parent: {
+                database_id: process.env.NOTION_DATABASE_ID,
+            },
+            properties: {
+                Name: {
+                    title: [
+                        {
+                            text: {
+                                content: "Lecture Notes"
                             }
-                        },
-                        "href": "https://en.wikipedia.org/wiki/Lacinato_kale"
-                    }
-                ],
-                "color": "default"
-            }
-        }
-    ]
-});
-  console.log(response);
-})();
+                        }
+                    ]
+                },
+            },
+            children: [
+                {
+                    object: 'block',
+                    type: 'paragraph',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                type: 'text',
+                                text: {
+                                    content: markdownNotes,
+                                },
+                            },
+                        ],
+                    },
+                },
+            ],
+        });
+
+        console.log('Success! Page created in Notion:', response);
+    } catch (error) {
+        console.error('Error creating page in Notion:', error);
+        throw new Error('Failed to create page in Notion.');
+    }
+}
+
 
 // END
 
