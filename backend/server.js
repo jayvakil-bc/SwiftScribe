@@ -5,6 +5,7 @@ const path = require('path');
 const OpenAI = require('OpenAI');
 const { createClient } = require('@deepgram/sdk');
 require('dotenv').config();
+ 
 
 //Notion
 const { Client } = require('@notionhq/client')
@@ -20,6 +21,7 @@ const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'upload.html'));
+    
 });
 
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
@@ -40,7 +42,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
             }
         );
 
-        console.log("Deepgram API Response:", { result, error }); //added this line to troubleshoot
+        
 
         fs.unlinkSync(file.path);
 
@@ -48,13 +50,19 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
         //const transcript = results.results.channels[0].alternatives[0].transcript;
 
         const transcript = result.results.channels[0].alternatives[0].transcript;
-        
+
+        //COMMENTING THIS FOR TROUBLESHOOTING NOTION API RES
         const markdownNotes = await generateLectureNotes(transcript);
 
-        // calling the createNotionPage function to create the Notion page with the generated notes
-        await createNotionPage(markdownNotes);
+        //calling the createNotionPage function to create the Notion page with the generated notes
+        
 
-        res.json({ message: 'Notes created in Notion successfully!' });
+        res.json(markdownNotes);
+        createNotionPage(markdownNotes);
+       
+        
+                
+        
 
 
     } catch (error) {
@@ -98,7 +106,8 @@ async function generateLectureNotes(transcript) {
             model: "gpt-4o-mini",
         });
         //console.log(chatCompletion.choices[0].message.content);
-    
+        //console.log("Deepgram API Response:", { result, error });
+        //`# Lecture Notes on Character Analysis: Mister Rochester\n\n## Overview\n- **Main Character**: Mister Rochester\n- **Context**: Analyzing his attributes and relationships in the narrative.\n\n## Key Characteristics of Mister Rochester\n1. **Complex Personality**\n   - **Subdued Nature**: Rochester often appears somber and serious.\n   - **Contradictory Traits**: He exhibits both commanding authority and vulnerability.\n   \n2. **Romantic Involvement**\n   - **Relationship with Jane Eyre**: His bond with Jane showcases deep emotional connections.\n   - **Devotion**: He displays a significant commitment toward Jane despite obstacles.\n\n3. **Social Status**\n   - **Wealthy Background**: His societal position impacts his relationships and choices.\n   - **Isolation**: Despite wealth, he often feels lonely and misunderstood.\n\n## Themes Related to Rochester\n- **Love and Sacrifice**\n  - Rochester's willingness to sacrifice his status for love reflects the depth of his character.\n\n- **Redemption**\n  - His journey illustrates the theme of seeking forgiveness and redemption throughout the story.\n\n## Important Terms\n- **Simplicity**: Rochester contrasts the simple values of love and devotion against the complexities of social status.\n- **Devotion**: His relentless loyalty to Jane is a central theme of their interaction.\n\n## Conclusion\n- Mister Rochester serves as a pivotal character whose emotional struggles and growth reflect major themes in the narrative. His relationship with Jane Eyre enriches the story by illustrating the conflict between societal expectations and personal desires.\n\n*These notes aim to encapsulate the significant aspects of Mister Rochester as discussed in the lecture, focusing on his character traits and themes that resonate throughout the narrative.*`,
         return chatCompletion.choices[0].message.content;
     } catch (error) {
         console.error('Error generating notes:', error);
@@ -145,7 +154,7 @@ async function createNotionPage(markdownNotes) {
                             {
                                 type: 'text',
                                 text: {
-                                    content: markdownNotes,
+                                    content: markdownNotes
                                 },
                             },
                         ],
