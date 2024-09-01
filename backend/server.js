@@ -52,10 +52,10 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
         const markdownNotes = await generateLectureNotes(transcript);
 
         // calling the createNotionPage function to create the Notion page with the generated notes
-        await createNotionPage(markdownNotes);
+        //await createNotionPage(markdownNotes);
 
-        res.json({ message: 'Notes created in Notion successfully!' });
-
+        //res.json({ message: 'Notes created in Notion successfully!' });
+        res.json({markdownNotes})
 
     } catch (error) {
         console.error('Error transcribing audio:', error);
