@@ -11,5 +11,28 @@
         <input type="file" name="audio" accept="audio/*" required>
         <button type="submit">Upload and Transcribe</button>
     </form>
+
+    <h2>Transcribed Notes:</h2>
+    <div id="transcription-result">
+      
+    </div>
+
+    <script>
+        const form = document.querySelector('form');
+        const transcriptionResult = document.getElementById('transcription-result');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const formData = new FormData(form);
+            const response = await fetch('/transcribe', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const result = await response.text();
+            transcriptionResult.innerHTML = result; 
+        });
+    </script>
 </body>
 </html>
