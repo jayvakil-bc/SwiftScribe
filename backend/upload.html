@@ -3,13 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Upload</title>
+    <title>Upload and Transcribe Audio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+        #transcription-result {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #actions {
+            margin-top: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-    <h1>Upload Audio File</h1>
-    <form action="/transcribe" method="POST" enctype="multipart/form-data">
-        <input type="file" name="audio" accept="audio/*" required>
-        <button type="submit">Upload and Transcribe</button>
-    </form>
+    <div class="container">
+        <h1>Transcribe Audio to Notes</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <label for="audio">Upload an audio file (MP3, WAV, etc.):</label><br>
+            <input type="file" name="audio" id="audio" accept="audio/*" required><br><br>
+            <button type="submit">Submit</button>
+        </form>
+        <div id="loading" style="display:none;">
+            <p>Transcribing... Please wait.</p>
+        </div>
+        <div id="transcription-result"></div>
+        <div id="actions" class="hidden">
+            <button id="download-btn">Download as .txt</button>
+            <button id="copy-btn">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('audio');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please upload an audio file!');
+                return;
+            }
+            
+            formData.append('audio', file);
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('actions').classList.add('hidden');
+
+            try {
+                const response = await fetch('/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.text();
+                document.getElementById('transcription-result').textContent = result;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('actions').classList.remove('hidden');
+                createDownloadLink(result);
+            } catch (error) {
+                console.error('Error during transcription:', error);
+                document.getElementById('loading').style.display = 'none';
+                alert('An error occurred. Please try again.');
+            }
+        });
+
+        function createDownloadLink(text) {
+            const downloadBtn = document.getElementById('download-btn');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            downloadBtn.onclick = function() {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'transcription.txt';
+                a.click();
+            };
+        }
+
+        document.getElementById('copy-btn').addEventListener('click', function() {
+            const resultText = document.getElementById('transcription-result').textContent;
+            navigator.clipboard.writeText(resultText)
+                .then(() => {
+                    alert('Transcription copied to clipboard!');
+                })
+                .catch(err => {
+                    console.error('Error copying text: ', err);
+                    alert('Failed to copy transcription.');
+                });
+        });
+    </script>
 </body>
 </html>

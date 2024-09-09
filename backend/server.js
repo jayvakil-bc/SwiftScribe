@@ -5,23 +5,19 @@ const path = require('path');
 const OpenAI = require('OpenAI');
 const { createClient } = require('@deepgram/sdk');
 require('dotenv').config();
- 
-
-//Notion
-const { Client } = require('@notionhq/client')
-const notion = new Client({auth: process.env.NOTION_KEY})
+const cors = require('cors');
 
 
 const app = express();
-const port = 3000;
+app.use(cors());
+const port = 3001;
 
 const upload = multer({ dest: 'uploads/' });
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
-const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'upload.html'));
-    
 });
 
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
@@ -34,7 +30,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 
         const audioFile = fs.readFileSync(file.path);
 
-        const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+        const response = await deepgram.listen.prerecorded.transcribeFile(
             audioFile,
             {
                 model: "nova-2",
@@ -42,70 +38,77 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
             }
         );
 
+        console.log(response);
+
+        if (!response.result || response.error) {
+            console.error('Deepgram API returned an error:', response.error);
+            return res.status(500).send('Deepgram API Error');
+        }
+
+        //fs.unlinkSync(file.path);
         
+        // Get transcript from Deepgram API
+        const transcript = response.result.results.channels[0].alternatives[0].transcript;
 
-        fs.unlinkSync(file.path);
+        // Pass transcript to OpenAI to format the lecture notes in HTML
+        const htmlNotes = await generateLectureNotes(transcript);
+        console.log(htmlNotes);
+        // Clean up the uploaded audio file
+        //fs.unlink(file.path, (err) => {
+        //    if (err) {
+        //        console.error('Error deleting file:', err);
+        //    }
+        //});
 
-        //res.json(result.results.channels[0].alternatives[0].transcript); 
-        //const transcript = results.results.channels[0].alternatives[0].transcript;
-
-        const transcript = result.results.channels[0].alternatives[0].transcript;
-
-        //COMMENTING THIS FOR TROUBLESHOOTING NOTION API RES
-        const markdownNotes = await generateLectureNotes(transcript);
-
-
-        //res.json(markdownNotes);
-        createNotionPage(markdownNotes);
-
-        //res.json({ message: 'Notes created in Notion successfully!' });
-        res.json(markdownNotes)
+        // Send the formatted HTML back to the client
+        res.set('Content-Type', 'text/html');
+        res.send(htmlNotes);
 
     } catch (error) {
-        console.error('Error transcribing audio:', error);
-        res.status(500).send('An error occurred while transcribing the audio.');
+        console.error('Error transcribing audio or generating notes:', error);
+        res.status(500).send('An error occurred during transcription or note generation.');
     }
 });
 
-//const transcript = "In today's fast paced world, continuous learning is not just a choice, it's a necessity. Whether you're a student, a professional, or anyone looking to grow, the pursuit of knowledge keeps you adaptable and relevant. The skills you learn today may become outdated tomorrow, so staying curious and proactive in your learning journey is crucial. Embrace new technologies, explore different fields, and never be afraid to challenge yourself. Learning isn't confined to classrooms. It happens every day through experiences, conversations, and even failures. The more you learn, the more you expand your horizons, opening doors to new opportunities and perspectives. Remember the quest for knowledge is a lifelong adventure, and it's one that will keep you sharp, innovative, and ready for whatever the future holds."
-//const transc = generateLectureNotes(transcript);
-//console.log(transc);
-
-// Function to call the ChatGPT API to generate structured lecture notes in Markdown
 async function generateLectureNotes(transcript) {
-
     const prompt = `
-    You are an expert note-taker. Convert the following lecture transcription into well-structured and well-formatted notes using Markdown. The notes should include:
+    You are an expert at converting lecture transcriptions into structured, clean, and easy-to-read notes formatted for display in HTML. Please organize and format the following lecture transcript according to these guidelines:
 
-    - A clear title at the top based on the lecture topic.
-    - Headings using #, ##, ### to organize sections.
-    - Bullet points for lists and key points.
-    - **Bold** formatting for key terms or important points.
-    - *Italic* formatting for supplementary or additional information.
+    1. **Title**: Start with a clear and descriptive title that reflects the topic of the lecture.
+    
+    2. **Sections and Headings**: Use the following structure:
+        - Wrap main topics in <h1> tags.
+        - Wrap subtopics in <h2> or <h3> tags, depending on the depth of the section.
 
-    Ensure that the Markdown is formatted correctly so that it renders as intended in Markdown editors, like Notion, without any need for further formatting adjustments.
+    3. **Key Points and Lists**: 
+        - Use unordered (<ul>) or ordered lists (<ol>) for key points or sequences.
+        - For key terms or important points, use <strong> tags to make them bold.
+        - Use <em> tags for supplementary or additional context.
 
-    Text for Conversion:
+    4. **Paragraphs and Formatting**: Ensure the text is broken into readable paragraphs using <p> tags. Avoid long blocks of text.
+
+    5. **Technical Content (if any)**: If the lecture contains code or technical information, wrap it in <pre> and <code> tags to preserve formatting.
+
+    6. **Clear and Concise**: Summarize lengthy sections when possible to make the content digestible, while maintaining the essential information.
+
+    Do not add any extra commentary or explanations, just return the clean, formatted HTML for the transcript.
+
+    Here is the lecture transcription to be formatted:
+
     ${transcript}
 
-    Return the output as clean, ready-to-use Markdown.
+    Please return the result formatted in HTML, ready for display on a webpage.
     `;
 
-
-
-
     try {
-
         const chatCompletion = await openai.chat.completions.create({
             messages: [
                 { role: "system", content: "You are a helpful assistant." },
                 { role: "user", content: prompt }
             ],
-            model: "gpt-4o-mini",
+            model: "gpt-4",
         });
-        //console.log(chatCompletion.choices[0].message.content);
-        //console.log("Deepgram API Response:", { result, error });
-        //`# Lecture Notes on Character Analysis: Mister Rochester\n\n## Overview\n- **Main Character**: Mister Rochester\n- **Context**: Analyzing his attributes and relationships in the narrative.\n\n## Key Characteristics of Mister Rochester\n1. **Complex Personality**\n   - **Subdued Nature**: Rochester often appears somber and serious.\n   - **Contradictory Traits**: He exhibits both commanding authority and vulnerability.\n   \n2. **Romantic Involvement**\n   - **Relationship with Jane Eyre**: His bond with Jane showcases deep emotional connections.\n   - **Devotion**: He displays a significant commitment toward Jane despite obstacles.\n\n3. **Social Status**\n   - **Wealthy Background**: His societal position impacts his relationships and choices.\n   - **Isolation**: Despite wealth, he often feels lonely and misunderstood.\n\n## Themes Related to Rochester\n- **Love and Sacrifice**\n  - Rochester's willingness to sacrifice his status for love reflects the depth of his character.\n\n- **Redemption**\n  - His journey illustrates the theme of seeking forgiveness and redemption throughout the story.\n\n## Important Terms\n- **Simplicity**: Rochester contrasts the simple values of love and devotion against the complexities of social status.\n- **Devotion**: His relentless loyalty to Jane is a central theme of their interaction.\n\n## Conclusion\n- Mister Rochester serves as a pivotal character whose emotional struggles and growth reflect major themes in the narrative. His relationship with Jane Eyre enriches the story by illustrating the conflict between societal expectations and personal desires.\n\n*These notes aim to encapsulate the significant aspects of Mister Rochester as discussed in the lecture, focusing on his character traits and themes that resonate throughout the narrative.*`,
+
         return chatCompletion.choices[0].message.content;
     } catch (error) {
         console.error('Error generating notes:', error);
@@ -113,66 +116,6 @@ async function generateLectureNotes(transcript) {
     }
 }
 
-// Send the formatted text to notion
-//START
-
-async function createNotionPage(markdownNotes) {
-    try {
-        const response = await notion.pages.create({
-            cover: {
-                type: "external",
-                external: {
-                    url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQL1vfD1t88e0tw4cPRG5VneFn14Yu7bzNU8ePWbn5W7UbH9jn2bJUGIYB-h0ZugGfrlQ&usqp=CAU"
-                }
-            },
-            icon: {
-                type: "emoji",
-                emoji: "📝"
-            },
-            parent: {
-                database_id: process.env.NOTION_DATABASE_ID,
-            },
-            properties: {
-                Name: {
-                    title: [
-                        {
-                            text: {
-                                content: "Lecture Notes"
-                            }
-                        }
-                    ]
-                },
-            },
-            children: [
-                {
-                    object: 'block',
-                    type: 'paragraph',
-                    paragraph: {
-                        rich_text: [
-                            {
-                                type: 'text',
-                                text: {
-                                    content: markdownNotes
-                                },
-                            },
-                        ],
-                    },
-                },
-            ],
-        });
-
-        console.log('Success! Page created in Notion:', response);
-    } catch (error) {
-        console.error('Error creating page in Notion:', error);
-        throw new Error('Failed to create page in Notion.');
-    }
-}
-
-
-// END
-
-
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });
-

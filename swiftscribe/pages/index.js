@@ -1,95 +1,57 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 export default function Home() {
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [transcription, setTranscription] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [transcriptionResult, setTranscriptionResult] = useState('');
+    const [loading, setLoading] = useState(false);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-    setMessage('');
-    setTranscription('');
-  };
+    const handleFileChange = (event) => {
+        setSelectedFile(event.target.files[0]);
+    };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+    const handleSubmit = async (event) => {
+        event.preventDefault();
 
-    if (!file) {
-      setMessage('Please select a file first!');
-      return;
-    }
+        if (!selectedFile) {
+            alert("Please select an audio file to upload.");
+            return;
+        }
 
-    setUploading(true);
-    setMessage('');
+        setLoading(true);
 
-    const formData = new FormData();
-    formData.append('file', file);
+        const formData = new FormData();
+        formData.append('audio', selectedFile);
 
-    try {
-      const response = await fetch('http://localhost:3001/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+        try {
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                body: formData,
+            });
 
-      const data = await response.json();
+            if (!response.ok) {
+                throw new Error('Error in transcription');
+            }
 
-      if (response.ok) {
-        setTranscription(data.transcription);
-        setMessage('File uploaded and transcribed successfully!');
-      } else {
-        setMessage('Error: ' + data.error);
-      }
-    } catch (error) {
-      setMessage('Error uploading file. Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  };
+            const result = await response.text();
+            setTranscriptionResult(result);
+        } catch (error) {
+            console.error('Error during transcription:', error);
+            alert('An error occurred. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-blue-500 to-indigo-600">
-      <div className="bg-white p-10 rounded-lg shadow-lg max-w-lg w-full">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-          SwiftScribe: Upload Audio/Video
-        </h1>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <input
-            type="file"
-            accept="audio/*,video/*"
-            onChange={handleFileChange}
-            className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
-          />
-          <button
-            type="submit"
-            className={`w-full py-3 rounded-lg text-white font-semibold transition-all duration-300 ${
-              uploading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-            disabled={uploading}
-          >
-            {uploading ? 'Uploading...' : 'Submit'}
-          </button>
-          {message && (
-            <p
-              className={`text-center mt-4 font-medium ${
-                message.includes('successfully')
-                  ? 'text-green-600'
-                  : 'text-red-600'
-              }`}
-            >
-              {message}
-            </p>
-          )}
-          {transcription && (
-            <div className="mt-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-2">Transcription:</h2>
-              <p className="text-gray-700 whitespace-pre-line">{transcription}</p>
-            </div>
-          )}
-        </form>
-      </div>
-    </div>
-  );
+    return (
+        <div className="container">
+            <h1>Transcribe Audio to Notes</h1>
+            <form onSubmit={handleSubmit} encType="multipart/form-data">
+                <label htmlFor="audio">Upload an audio file (MP3, WAV, etc.):</label><br/>
+                <input type="file" name="audio" id="audio" accept="audio/*" onChange={handleFileChange} required/><br/><br/>
+                <button type="submit">Submit</button>
+            </form>
+            {loading && <p>Transcribing... Please wait.</p>}
+            <div id="transcription-result" dangerouslySetInnerHTML={{ __html: transcriptionResult }}></div>
+        </div>
+    );
 }
